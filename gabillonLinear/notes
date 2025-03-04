@@ -1,0 +1,13 @@
+https://papers.nips.cc/paper_files/paper/2013/hash/7504adad8bb96320eb3afdd4df6e1f60-Abstract.html
+
+Select best move by maximizing a value function of the board given a rollout of some number of next moves. Value function is linear function of features learned via regression.
+Features/weights:
+- Landing height (-2.68)
+- Eroded piece cells (1.38)
+- Row transitions (-2.41)
+- Column transitions (-6.32)
+- Holes (2.03)
+- Board wells (-2.71)
+- Hole depth (-0.43)
+- Rows with holes (-9.48)
+- Diversity (0.89)

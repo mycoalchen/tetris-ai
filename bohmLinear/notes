@@ -1,0 +1,17 @@
+http://www.sc.ehu.es/ccwbayes/docencia/mmcc/docs/divulgativos/heuristicos-busqueda/TetrisbyGAs.pdf
+
+Greedily select the best move by maximizing a rating function given the board state after the next two moves.
+Features/weights:
+- Pile height (-62709)
+- Holes (-30271)
+- Connected Holes (0)
+- Removed Lines (-48621)
+- Altutide Difference (35395)
+- Max Well Depth (-12)
+- Sum of all Wells (-43810)
+- Landing Height (0)
+- Blocks (0)
+- Weighted Blocks (-4041)
+- Row Transitions (-44262)
+- Column Transitions (-5832)
+These parameters seem suspect as the weight for removed lines should certainly be positive while the weight for altutide difference should certainly be negative. It seems like there was a mistake in either the feature order or the weight order.

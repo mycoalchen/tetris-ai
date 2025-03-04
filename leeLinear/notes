@@ -1,0 +1,9 @@
+https://codemyroad.wordpress.com/2013/04/14/tetris-ai-the-near-perfect-player/
+
+Uses genetic algorithm
+
+Features/weights:
+- Aggregate height (-0.510066)
+- Complete lines (0.760666)
+- Holes (-0.35663)
+- Bumpiness (-0.184483)
