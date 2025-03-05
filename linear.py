@@ -85,4 +85,4 @@ def testLinearBot(ratingFunction, lookahead = 1, numTrials=10, render=False, pro
 
 
 if __name__ == "__main__":
-    testLinearBot(leeRating, render=True)
+    testLinearBot(leeRating, render=False)
