@@ -40,23 +40,23 @@ def getPossibleBoards(board: np.array, piece: np.array) -> dict[tuple, np.array]
     possible = {}
     for r in range(-1, 3):
         rotated_piece = np.rot90(piece, r)
-        for x in range(-7, 7):
+        for x_shift in range(-7, 7):
             # find the lowest position that this piece can be dropped with this x (if possible)
             # account for gravity – piece must fall by one for every x translation
-            y = abs(x)
-            if not can_place(board, rotated_piece, x + 7, y):
+            y = abs(x_shift)
+            if not can_place(board, rotated_piece, x_shift + 7, y):
                 continue
             y += 1
-            while can_place(board, rotated_piece, x + 7, y):
+            while can_place(board, rotated_piece, x_shift + 7, y):
                 y += 1
             y -= 1
             new_board = board.copy()
             for i in range(4):
                 for j in range(4):
                     if rotated_piece[i, j] != 0:
-                        new_board[y + i, x + j + 7] = 9
+                        new_board[y + i, x_shift + j + 7] = 9
             # Save the new board configuration with key (rotation, x translation)
-            possible[(r, x)] = (new_board, rotated_piece)
+            possible[(r, x_shift)] = (new_board, rotated_piece)
     return possible
 
 

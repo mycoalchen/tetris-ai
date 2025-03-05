@@ -2,6 +2,8 @@ import gymnasium as gym
 from tetris_gymnasium.envs import Tetris
 from utils import getPossibleBoards, BOARD_HEIGHT, BOARD_WIDTH, getCurrentBoardAndPiece
 import numpy as np
+import time
+import cv2
 
 
 class leeAgent:
@@ -67,30 +69,48 @@ class leeAgent:
         return best_decision
 
 
-env = gym.make("tetris_gymnasium/Tetris", render_mode="rgb_array")
-agent = leeAgent()
+if __name__ == "__main__":
+    env = gym.make("tetris_gymnasium/Tetris", render_mode="human")
+    agent = leeAgent()
 
-J = 0
-i = 0
-for _ in range(10):
-    env.reset()
+    J = 0
+    new_piece = True
+    # for _ in range(1):
+    observation, _ = env.reset()
+    env.render()
     terminated = False
     while not terminated:
-        if i == 4:
-            current_board, current_piece = getCurrentBoardAndPiece(observation["board"], observation["active_tetromino_mask"])
-            print(current_board)
-            print(current_piece)
-            print(agent.getPieceDecision(current_board, current_piece))
-            # colHeights = leeAgent.getColHeights(board)
-            # print(colHeights)
-            # print("agg:", leeAgent.getAggregateHeight(colHeights))
-            # print("complete lines:", leeAgent.getCompleteLines(board))
-            # print("holes:", leeAgent.getHoles(board))
-            # print("bumpiness:", leeAgent.getBumpiness(colHeights))
-            exit(0)
-        action = 5
+        env.render()
+        # idk why but rendering doesn't work unless the next line is uncommented
+        # _ = cv2.waitKey(100)
+        if new_piece:
+            current_board, current_piece = getCurrentBoardAndPiece(
+                observation["board"], observation["active_tetromino_mask"]
+            )
+            decision = agent.getPieceDecision(current_board, current_piece)
+            if decision == ():
+                break
+            r, x = decision
+        new_piece = False
+        match r, x:
+            case 0, 0:
+                action = 5
+                new_piece = True
+            # np.rot90 is counterclockwise
+            # r = -1 means rotate clockwise
+            # action 4 is rotate clockwise (Tetris mappings are flipped)
+            case -1, _:
+                action = 4
+                r += 1
+            case (1, _) | (2, _):
+                action = 3
+                r -= 1
+            case _:
+                action = 0 if x < 0 else 1
+                x -= np.sign(x)
         observation, reward, terminated, truncated, info = env.step(action)
-        i += 1
         J += reward
-J /= 10
-print("J(pi)=", J)
+        # if J % 1000 == 0:
+        # print(J)
+        # print(reward, terminated, truncated, info)
+    print("J(pi)=", J)
