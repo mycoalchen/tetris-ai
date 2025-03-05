@@ -4,7 +4,11 @@ from utils import (
     BOARD_HEIGHT,
     BOARD_WIDTH,
     getCurrentBoardAndPiece,
-    getPieceDecision,
+    getBestHardDrop,
+    getBestDecision,
+    readQueue,
+    read4x4,
+    getStartingX
 )
 import numpy as np
 import cv2
@@ -12,7 +16,7 @@ import datetime
 from lee import leeRating
 
 
-def testLinearBot(ratingFunction, numTrials=10, render=False, progUpdates=True):
+def testLinearBot(ratingFunction, lookahead = 1, numTrials=10, render=False, progUpdates=True):
 
     env = gym.make("tetris_gymnasium/Tetris", render_mode="human")
 
@@ -37,13 +41,14 @@ def testLinearBot(ratingFunction, numTrials=10, render=False, progUpdates=True):
                         a = 1
             if new_piece:
                 t1 = datetime.datetime.now()
-                current_board, current_piece, current_piece_left_x = (
+                current_board, active_piece = (
                     getCurrentBoardAndPiece(
                         observation["board"], observation["active_tetromino_mask"]
                     )
                 )
-                decision = getPieceDecision(
-                    current_board, current_piece, current_piece_left_x, ratingFunction
+                queue = readQueue(observation["queue"], lookahead)
+                decision = getBestDecision(
+                    current_board, active_piece, np.zeros((4, 4)), queue, False, getStartingX(active_piece), ratingFunction
                 )
                 if decision == ():
                     break
@@ -80,4 +85,4 @@ def testLinearBot(ratingFunction, numTrials=10, render=False, progUpdates=True):
 
 
 if __name__ == "__main__":
-    testLinearBot(leeRating)
+    testLinearBot(leeRating, render=True)
