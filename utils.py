@@ -12,7 +12,7 @@ def can_place(board, piece, x, y):
       - There is no collision (i.e. board cell is already nonzero).
     """
     piece_rows, piece_cols = piece.shape
-    for i in range(piece_rows):
+    for i in range(piece_rows -1, -1, -1):
         for j in range(piece_cols):
             if piece[i, j] != 0:
                 board_x = x + j
@@ -41,7 +41,7 @@ def getPieceDecision(
     best_decision, best_rating = (), -100000000
     for r in range(-1, 3):
         rotated_piece = np.rot90(piece, r)
-        for x_shift in range(-9, 9):
+        for x_shift in range(-7, 7):
             # find the lowest position that this piece can be dropped with this x (if possible)
             # account for gravity – piece must fall by one for every x translation
             y = abs(x_shift)
@@ -55,8 +55,9 @@ def getPieceDecision(
                 y : y + piece_size,
                 x_shift + starting_x : x_shift + starting_x + piece_size,
             ] += rotated_piece
-            if rating_function(board) > best_rating:
-                best_rating = rating_function(board)
+            curr_rating = rating_function(board)
+            if curr_rating > best_rating:
+                best_rating = curr_rating
                 best_decision = (r, x_shift)
             board[
                 y : y + piece_size,
