@@ -31,9 +31,7 @@ def can_place(board, piece, x, y):
     return True
 
 
-def getPossibleBoards(
-    piece: np.array, board: np.array
-) -> dict[tuple, np.array]:
+def getPossibleBoards(board: np.array, piece: np.array) -> dict[tuple, np.array]:
     """
     Return all possible future boards after placing this piece, with corresponding (rotation, horizontal translation) tuples, given that it starts at piece_x, piece_y.
     Returns dict mapping valid (rotation, horizontal translation) tuples to resulting future boards. Output is 0/1 board.
@@ -43,7 +41,7 @@ def getPossibleBoards(
     for r in range(-1, 3):
         rotated_piece = np.rot90(piece, r)
         for x in range(-7, 7):
-            # find the lowest posiion that this piece can be dropped with this x (if possible)
+            # find the lowest position that this piece can be dropped with this x (if possible)
             # account for gravity – piece must fall by one for every x translation
             y = abs(x)
             if not can_place(board, rotated_piece, x + 7, y):
@@ -60,3 +58,12 @@ def getPossibleBoards(
             # Save the new board configuration with key (rotation, x translation)
             possible[(r, x)] = (new_board, rotated_piece)
     return possible
+
+
+def getCurrentBoardAndPiece(raw_board, active_mask):
+    """
+    Separates the board from the active tetromino
+    """
+    current_board = raw_board - raw_board * active_mask
+    current_piece = raw_board[0:4, 7:11]
+    return current_board, current_piece
