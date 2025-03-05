@@ -164,11 +164,12 @@ def getBestDecision(
             continue
         visited_state_hashes.add(state_hash)
         # check if terminal state
-        if pqi == 2 + len(piece_queue):
+        if pqi == len(current_pieces):
             rating = rating_function(cb)
             if rating > best_end_rating:
                 best_end_rating = rating
                 best_initial_decision = d0
+            continue
         # first try all the hard drops
         for r in range(-1, 3):
             rp = rotated_pieces[api][r % 4]
