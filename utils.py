@@ -31,16 +31,14 @@ def can_place(board, piece, x, y):
     return True
 
 
-def getPossibleBoards(
-    board: np.array, piece: np.array, starting_x: int
+def getPieceDecision(
+    board: np.array, piece: np.array, starting_x: int, rating_function
 ) -> dict[tuple, np.array]:
     """
-    Return all possible future boards after placing this piece, with corresponding (rotation, horizontal translation) tuples, given that it starts at piece_x, piece_y.
-    Returns dict mapping valid (rotation, horizontal translation) tuples to resulting future boards. Output is 0/1 board.
-    Rotations are counterclockwise.
+    Returns the (rotation, horizontal translation) tuple corresponding to the best decision for the given board, active piece, and rating function. Active piece is assumed to start at (0, starting_x).
     """
-    possible = {}
     piece_size = len(piece)  # pieces are always square
+    best_decision, best_rating = (), -100000000
     for r in range(-1, 3):
         rotated_piece = np.rot90(piece, r)
         for x_shift in range(-9, 9):
@@ -53,14 +51,18 @@ def getPossibleBoards(
             while can_place(board, rotated_piece, x_shift + starting_x, y):
                 y += 1
             y -= 1
-            new_board = board.copy()
-            for i in range(piece_size):
-                for j in range(piece_size):
-                    if rotated_piece[i, j] != 0:
-                        new_board[y + i, x_shift + j + starting_x] = 9
-            # Save the new board configuration with key (rotation, x translation)
-            possible[(r, x_shift)] = (new_board, rotated_piece)
-    return possible
+            board[
+                y : y + piece_size,
+                x_shift + starting_x : x_shift + starting_x + piece_size,
+            ] += rotated_piece
+            if rating_function(board) > best_rating:
+                best_rating = rating_function(board)
+                best_decision = (r, x_shift)
+            board[
+                y : y + piece_size,
+                x_shift + starting_x : x_shift + starting_x + piece_size,
+            ] -= rotated_piece
+    return best_decision
 
 
 def getCurrentBoardAndPiece(raw_board: np.array, active_mask: np.array):
