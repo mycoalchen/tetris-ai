@@ -31,39 +31,54 @@ def can_place(board, piece, x, y):
     return True
 
 
-def getPossibleBoards(board: np.array, piece: np.array) -> dict[tuple, np.array]:
+def getPossibleBoards(
+    board: np.array, piece: np.array, starting_x: int
+) -> dict[tuple, np.array]:
     """
     Return all possible future boards after placing this piece, with corresponding (rotation, horizontal translation) tuples, given that it starts at piece_x, piece_y.
     Returns dict mapping valid (rotation, horizontal translation) tuples to resulting future boards. Output is 0/1 board.
     Rotations are counterclockwise.
     """
     possible = {}
+    piece_size = len(piece)  # pieces are always square
     for r in range(-1, 3):
         rotated_piece = np.rot90(piece, r)
-        for x_shift in range(-7, 7):
+        for x_shift in range(-9, 9):
             # find the lowest position that this piece can be dropped with this x (if possible)
             # account for gravity – piece must fall by one for every x translation
             y = abs(x_shift)
-            if not can_place(board, rotated_piece, x_shift + 7, y):
+            if not can_place(board, rotated_piece, x_shift + starting_x, y):
                 continue
             y += 1
-            while can_place(board, rotated_piece, x_shift + 7, y):
+            while can_place(board, rotated_piece, x_shift + starting_x, y):
                 y += 1
             y -= 1
             new_board = board.copy()
-            for i in range(4):
-                for j in range(4):
+            for i in range(piece_size):
+                for j in range(piece_size):
                     if rotated_piece[i, j] != 0:
-                        new_board[y + i, x_shift + j + 7] = 9
+                        new_board[y + i, x_shift + j + starting_x] = 9
             # Save the new board configuration with key (rotation, x translation)
             possible[(r, x_shift)] = (new_board, rotated_piece)
     return possible
 
 
-def getCurrentBoardAndPiece(raw_board, active_mask):
+def getCurrentBoardAndPiece(raw_board: np.array, active_mask: np.array):
     """
-    Separates the board from the active tetromino
+    Separates the board from the active tetromino. Also returns leftmost x coordinate of active tetromino
     """
     current_board = raw_board - raw_board * active_mask
-    current_piece = raw_board[0:4, 7:11]
-    return current_board, current_piece
+    # find top left and bottom right corners of active mask
+    x = 4
+    while not active_mask[0, x]:
+        x += 1
+    left = x
+    while active_mask[0, x]:
+        x += 1
+    right = x
+    x -= 1
+    y = 0
+    while active_mask[y, x]:
+        y += 1
+    bottom = y
+    return current_board, raw_board[:bottom, left:right], left

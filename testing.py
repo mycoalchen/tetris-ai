@@ -12,12 +12,14 @@ for _ in range(10):
     terminated = False
     while not terminated:
         if i == 4:
-            current_board, current_piece = getCurrentBoardAndPiece(observation["board"], observation["active_tetromino_mask"])
-            possible = getPossibleBoards(current_piece, current_board)
-            # for tup, (board, rotated_piece) in possible.items():
-            #     print(tup)
-            #     print(rotated_piece)
-            #     print(board)
+            current_board, current_piece, starting_x = getCurrentBoardAndPiece(
+                observation["board"], observation["active_tetromino_mask"]
+            )
+            possible = getPossibleBoards(current_board, current_piece, starting_x)
+            for tup, (board, rotated_piece) in possible.items():
+                print(tup)
+                print(rotated_piece)
+                print(board)
         action = 5
         observation, reward, terminated, truncated, info = env.step(action)
         i += 1

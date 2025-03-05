@@ -2,7 +2,6 @@ import gymnasium as gym
 from tetris_gymnasium.envs import Tetris
 from utils import getPossibleBoards, BOARD_HEIGHT, BOARD_WIDTH, getCurrentBoardAndPiece
 import numpy as np
-import time
 import cv2
 
 
@@ -55,11 +54,11 @@ class leeAgent:
             ],
         )
 
-    def getPieceDecision(self, board, currentPiece):
+    def getPieceDecision(self, current_board, current_piece, current_piece_left_x):
         """
         Returns the (rotation, horizontal translation) tuple maximizing the rating of the board after hard dropping currentPiece
         """
-        possibleBoards = getPossibleBoards(board, currentPiece)
+        possibleBoards = getPossibleBoards(current_board, current_piece, current_piece_left_x)
         best_decision = ()
         best_rating = -1000000
         for (r, x), (new_board, _) in possibleBoards.items():
@@ -74,20 +73,29 @@ if __name__ == "__main__":
     agent = leeAgent()
 
     J = 0
+    prev1000 = 0
     new_piece = True
     # for _ in range(1):
     observation, _ = env.reset()
-    env.render()
+    # env.render()
     terminated = False
     while not terminated:
-        env.render()
-        # idk why but rendering doesn't work unless the next line is uncommented
-        # _ = cv2.waitKey(100)
+        # idk why but rendering doesn't work unless the next block is uncommented
+        # env.render()
+        # a = None
+        # while a is None:
+        #     _ = cv2.waitKey(1)
+        #     if _ == ord(" "):
+        #         a = 1
         if new_piece:
-            current_board, current_piece = getCurrentBoardAndPiece(
-                observation["board"], observation["active_tetromino_mask"]
+            current_board, current_piece, current_piece_left_x = (
+                getCurrentBoardAndPiece(
+                    observation["board"], observation["active_tetromino_mask"]
+                )
             )
-            decision = agent.getPieceDecision(current_board, current_piece)
+            decision = agent.getPieceDecision(
+                current_board, current_piece, current_piece_left_x
+            )
             if decision == ():
                 break
             r, x = decision
@@ -110,7 +118,8 @@ if __name__ == "__main__":
                 x -= np.sign(x)
         observation, reward, terminated, truncated, info = env.step(action)
         J += reward
-        # if J % 1000 == 0:
-        # print(J)
+        if J > prev1000:
+            print(J)
+            prev1000 += 1000
         # print(reward, terminated, truncated, info)
     print("J(pi)=", J)
