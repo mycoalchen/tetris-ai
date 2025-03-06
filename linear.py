@@ -8,7 +8,7 @@ from utils import (
     getBestDecision,
     readQueue,
     read4x4,
-    getStartingX
+    getStartingX,
 )
 import numpy as np
 import cv2
@@ -16,13 +16,20 @@ import datetime
 from lee import leeRating
 
 
-def testLinearBot(ratingFunction, lookahead = 1, numTrials=10, render=False, progUpdates=True):
+def testLinearBot(
+    ratingFunction,
+    lookahead=1,
+    numTrials=10,
+    render=False,
+    jUpdates=True,
+    stepUpdates=False,
+):
 
     env = gym.make("tetris_gymnasium/Tetris", render_mode="human")
 
     J = 0
     for i in range(numTrials):
-        curr_J = 0
+        curr_J, prev_J1000 = 0, 0
         steps = 0
         t0 = datetime.datetime.now()
         calc_time = 0
@@ -41,14 +48,17 @@ def testLinearBot(ratingFunction, lookahead = 1, numTrials=10, render=False, pro
                         a = 1
             if new_piece:
                 t1 = datetime.datetime.now()
-                current_board, active_piece = (
-                    getCurrentBoardAndPiece(
-                        observation["board"], observation["active_tetromino_mask"]
-                    )
+                current_board, active_piece = getCurrentBoardAndPiece(
+                    observation["board"], observation["active_tetromino_mask"]
                 )
                 queue = readQueue(observation["queue"], lookahead)
                 decision = getBestDecision(
-                    current_board, active_piece, np.zeros((4, 4)), queue, False, getStartingX(active_piece), ratingFunction
+                    current_board,
+                    active_piece,
+                    np.zeros((4, 4)),
+                    queue,
+                    False,
+                    ratingFunction,
                 )
                 if decision == ():
                     break
@@ -70,8 +80,8 @@ def testLinearBot(ratingFunction, lookahead = 1, numTrials=10, render=False, pro
                     x -= np.sign(x)
             observation, reward, terminated, truncated, info = env.step(action)
             curr_J += reward
-            if progUpdates:
-                if steps % 1000 == 0:
+            if stepUpdates:
+                if steps % 10 == 0:
                     dt = (datetime.datetime.now() - t0).total_seconds()
                     print(
                         f"{steps} steps completed in {dt:.2f}s; average {1000 * dt/steps:.2f}ms per step"
@@ -79,10 +89,16 @@ def testLinearBot(ratingFunction, lookahead = 1, numTrials=10, render=False, pro
                     print(
                         f"{calc_time:.2f}s spent calculating moves ({100 * calc_time/dt:.2f}%)"
                     )
+            if jUpdates:
+                if curr_J - curr_J % 1000 > prev_J1000:
+                    print(
+                        f"Reached J = {curr_J} in {(datetime.datetime.now() - t0).total_seconds():.2f}s"
+                    )
+                    prev_J1000 = curr_J - curr_J % 1000
         print(f"Trial {i} terminated with reward {curr_J}")
         J += curr_J
     print("J(pi)=", J / numTrials)
 
 
 if __name__ == "__main__":
-    testLinearBot(leeRating, render=False)
+    testLinearBot(leeRating, render=False, jUpdates=True, stepUpdates=False)

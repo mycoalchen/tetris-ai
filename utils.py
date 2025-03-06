@@ -1,5 +1,20 @@
 import numpy as np
-from collections import deque
+import heapq
+from dataclasses import dataclass, field
+from typing import Any
+
+
+# Use this in our heap while beam searching for future move sequences
+# Beam search states are composed of (-1 * current board rating, current board, active piece index, held piece index, piece queue starting index, can swap, initial decision) tuples
+@dataclass(order=True)
+class LookaheadCandidate:
+    negBoardRating: float
+    board: Any = field(compare=False)
+    api: int = field(compare=False)
+    hpi: int = field(compare=False)
+    pqi: int = field(compare=False)
+    cs: bool = field(compare=False)
+    d0: Any = field(compare=False)
 
 
 BOARD_WIDTH, BOARD_HEIGHT = 10, 20
@@ -53,12 +68,30 @@ def getCurrentBoardAndPiece(raw_board: np.array, active_mask: np.array):
     return current_board, raw_board[:bottom, left:right]
 
 
+def tryHardDrop(board: np.array, piece: np.array, starting_x: int, starting_y):
+    # find the lowest position that this piece can be dropped with this x (if possible)
+    # account for gravity – piece must fall by one for every x translation
+    y = starting_y
+    if not can_place(board, piece, starting_x, y):
+        return None
+    y += 1
+    while can_place(board, piece, starting_x, y):
+        y += 1
+    y -= 1
+    new_board = board.copy()
+    new_board[
+        y : y + len(piece),
+        starting_x : starting_x + len(piece),
+    ] += piece
+    return new_board
+
+
 def getBestHardDrop(current_board: np.array, active_piece: np.array, rating_function):
     """
     Returns the (rotation, horizontal translation) tuple corresponding to the best decision for the given board, active piece, and rating function. Active piece is assumed to start at (0, starting_x).
     """
     piece_size = len(active_piece)  # pieces are always square
-    starting_x = getStartingX(active_piece)  # all pieces except I start at x = 8
+    starting_x = getStartingX(active_piece)
     best_decision, best_rating = (), -100000000
     for r in range(-1, 3):
         rotated_piece = np.rot90(active_piece, r)
@@ -126,6 +159,7 @@ def getStartingX(piece: np.array) -> int:
     """
     return 7 if len(piece) == 4 else 8
 
+
 def hash_board(board: np.array) -> int:
     return board.data.tobytes()
 
@@ -136,65 +170,73 @@ def getBestDecision(
     held_piece: np.array,
     piece_queue: list[np.array],
     can_swap: bool,
-    starting_x: int,
     rating_function,
+    num_beams=5,
 ):
     """
     Returns the best decision for the active piece, given the queue. Decision is either a (rotation, horizontal translation) tuple or True if best decision is to swap.
     Specifically, this finds the highest-rated sequence of decisions that clears piece_queue, and returns the first decision in that sequence.
     active_piece, held_piece, and piece_queue are assumed to contain SxS squares where S is the size of each piece. (2 for O, 4 for I, 3 for all others.)
+    Maintains the top num_beams move sequences and prunes all others.
     """
-    if not piece_queue:
-        return getBestHardDrop(current_board, active_piece, starting_x, rating_function)
     current_pieces = [held_piece, active_piece] + piece_queue
     # Precompute rotations of current pieces
     rotated_pieces = [
         [np.rot90(piece, r) for r in range(4)] for piece in current_pieces
     ]
-    # BFS over all possible sequences of next hard drops
-    # BFS states are composed of (current board, active piece index, held piece index, piece queue starting index, can swap, initial decision) tuples
-    init_state = (current_board, 1, 0, 2, can_swap, None)
-    bfs_queue = deque([init_state])
-    best_initial_decision, best_end_rating = (), -1000000000
-    visited_state_hashes = set()
-    while bfs_queue:
-        cb, api, hpi, pqi, cs, d0 = bfs_queue.pop()
-        state_hash = hash((hash_board(cb), api, hpi, pqi, cs))
-        if state_hash in visited_state_hashes:
-            continue
-        visited_state_hashes.add(state_hash)
-        # check if terminal state
-        if pqi == len(current_pieces):
-            rating = rating_function(cb)
-            if rating > best_end_rating:
-                best_end_rating = rating
-                best_initial_decision = d0
-            continue
-        # first try all the hard drops
-        for r in range(-1, 3):
-            rp = rotated_pieces[api][r % 4]
-            for x_shift in range(-7, 7):
+    # Beam search over all possible sequences of next hard drops
+    # Beam search states are composed of (-1 * current board rating, current board, active piece index, held piece index, piece queue starting index, can swap, initial decision) tuples
+    init_state = LookaheadCandidate(0, current_board, 1, 0, 2, can_swap, None)
+    candidates: list[LookaheadCandidate] = [init_state]
+    terminals = []
+    while candidates:
+        new_candidates = []
+        while candidates:
+            candidate = candidates.pop()
+            if candidate.pqi == len(current_pieces):
+                terminals.append((-candidate.negBoardRating, candidate.d0))
+                continue
+            # try all the hard drops
+            for r in range(-1, 3):
+                rp = rotated_pieces[candidate.api][r % 4]
+                for x_shift in range(-7, 7):
+                    starting_x = getStartingX(rp)
+                    new_board = tryHardDrop(candidate.board, rp, x_shift + starting_x, abs(x_shift))
+                    if new_board is None:
+                        continue
+                    # update d0 only if this is the first move in the sequence
+                    if not candidate.d0:
+                        new_candidates.append(
+                            LookaheadCandidate(
+                                -rating_function(new_board),
+                                new_board,
+                                candidate.pqi,
+                                candidate.hpi,
+                                candidate.pqi + 1,
+                                candidate.cs,
+                                (r, x_shift),
+                            )
+                        )
+                    else:
+                        new_candidates.append(
+                            LookaheadCandidate(
+                                -rating_function(new_board),
+                                new_board,
+                                candidate.pqi,
+                                candidate.hpi,
+                                candidate.pqi + 1,
+                                candidate.cs,
+                                candidate.d0,
+                            )
+                        )
+            # try swapping
+            if candidate.cs:
                 pass
-                y = abs(x_shift)
-                piece_size = len(rp)
-                sx = getStartingX(rp)  # all pieces except the I start at x = 8
-                if not can_place(cb, rp, x_shift + sx, y):
-                    continue
-                y += 1
-                while can_place(cb, rp, x_shift + sx, y):
-                    y += 1
-                y -= 1
-                new_board = cb.copy()
-                new_board[
-                    y : y + piece_size,
-                    x_shift + sx : x_shift + sx + piece_size,
-                ] += rp
-                # update d0 only if this is the first move in the sequence
-                if not d0:
-                    bfs_queue.appendleft((new_board, pqi, hpi, pqi + 1, cs, (r, x_shift)))
-                else:
-                    bfs_queue.appendleft((new_board, pqi, hpi, pqi + 1, cs, d0))
-        # next try swapping
-        if can_swap:
-            pass
-    return best_initial_decision
+        # prune all but the best num_beams sequences
+        candidates = heapq.nsmallest(num_beams, new_candidates)
+    best_rating, best_d0 = terminals.pop()
+    while terminals:
+        rating, d0 = terminals.pop()
+        if rating > best_rating:
+            best_rating, best_d0 = rating, d0
+    return best_d0
