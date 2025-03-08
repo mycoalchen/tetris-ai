@@ -12,17 +12,19 @@ from utils import (
 )
 import numpy as np
 import cv2
-import datetime
+import time
 from lee import leeRating
 
 
 def testLinearBot(
     ratingFunction,
     lookahead=2,
+    num_beams=5,
     numTrials=10,
     render=False,
     jUpdates=True,
     stepUpdates=False,
+    allow_swaps=True,
 ):
 
     env = gym.make("tetris_gymnasium/Tetris", render_mode="human")
@@ -30,10 +32,10 @@ def testLinearBot(
     J = 0
     for i in range(numTrials):
         curr_J, prev_J1000 = 0, 0
-        steps = 0
-        t0 = datetime.datetime.now()
+        steps, moves = 0, 0
+        t0 = time.time()
         calc_time = 0
-        new_piece, can_swap = True, True
+        new_piece, can_swap = True, allow_swaps
         observation, _ = env.reset()
         terminated = False
         while not terminated:
@@ -47,9 +49,12 @@ def testLinearBot(
                     if _ == ord(" "):
                         a = 1
             if new_piece:
-                t1 = datetime.datetime.now()
-                current_board, active_piece, active_piece_starting_y = getCurrentBoardAndPiece(
-                    observation["board"], observation["active_tetromino_mask"]
+                t1 = time.time()
+                moves += 1
+                current_board, active_piece, active_piece_starting_y = (
+                    getCurrentBoardAndPiece(
+                        observation["board"], observation["active_tetromino_mask"]
+                    )
                 )
                 queue = readQueue(observation["queue"], lookahead + 1)
                 decision = getBestDecision(
@@ -60,14 +65,14 @@ def testLinearBot(
                     piece_queue=queue,
                     can_swap=can_swap,
                     rating_function=ratingFunction,
-                    num_beams=5,
-                    num_decisions=lookahead+1
+                    num_beams=num_beams,
+                    num_decisions=lookahead + 1,
                 )
                 new_piece = False
                 if decision == ():
                     break
                 r, x = decision
-                calc_time += (datetime.datetime.now() - t1).total_seconds()
+                calc_time += (time.time() - t1)
             match r, x:
                 case False, False:
                     action = 6
@@ -76,7 +81,7 @@ def testLinearBot(
                 case 0, 0:
                     action = 5
                     new_piece = True
-                    can_swap = True
+                    can_swap = allow_swaps
                 case -1, _:
                     action = 4
                     r += 1
@@ -89,10 +94,13 @@ def testLinearBot(
             observation, reward, terminated, truncated, info = env.step(action)
             curr_J += reward
             if stepUpdates:
-                if steps % 10 == 0:
-                    dt = (datetime.datetime.now() - t0).total_seconds()
+                if steps % 100 == 0:
+                    dt = (time.time() - t0)
                     print(
                         f"{steps} steps completed in {dt:.2f}s; average {1000 * dt/steps:.2f}ms per step"
+                    )
+                    print(
+                        f"{moves} moves completed in {dt:.2f}s; average {1000 * dt/moves:.2f}ms per move"
                     )
                     print(
                         f"{calc_time:.2f}s spent calculating moves ({100 * calc_time/dt:.2f}%)"
@@ -100,7 +108,7 @@ def testLinearBot(
             if jUpdates:
                 if curr_J - curr_J % 1000 > prev_J1000:
                     print(
-                        f"Reached J = {curr_J} in {(datetime.datetime.now() - t0).total_seconds():.2f}s"
+                        f"Reached J = {curr_J} in {(time.time() - t0):.2f}s"
                     )
                     prev_J1000 = curr_J - curr_J % 1000
         print(f"Trial {i} terminated with reward {curr_J}")
@@ -109,4 +117,4 @@ def testLinearBot(
 
 
 if __name__ == "__main__":
-    testLinearBot(leeRating, render=False, jUpdates=True, stepUpdates=True, lookahead=2)
+    testLinearBot(leeRating, render=False, jUpdates=True, stepUpdates=True, numTrials=1, lookahead=1, num_beams=5, allow_swaps=False)

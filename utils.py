@@ -2,6 +2,15 @@ import numpy as np
 import heapq
 from dataclasses import dataclass, field
 from typing import Any
+import time, pstats
+
+
+# for higher cprofile precision
+def f8_alt(x):
+    return "%14.9f" % x
+
+
+pstats.f8 = f8_alt
 
 
 # Use this in our heap while beam searching for future move sequences
@@ -19,7 +28,40 @@ class LookaheadCandidate:
     decisions_rem: int = field(compare=False)
 
 
+def hashCandidate(candidate: LookaheadCandidate) -> int:
+    return hash(
+        (
+            candidate.board.tobytes(),
+            candidate.apsy,
+            candidate.api,
+            candidate.hpi,
+            candidate.pqi,
+            candidate.cs,
+            candidate.decisions_rem,
+        )
+    )
+
+
 BOARD_WIDTH, BOARD_HEIGHT = 10, 20
+
+
+def getCurrentBoardAndPiece(raw_board: np.array, active_mask: np.array):
+    """
+    Separates the board from the active tetromino. Also returns the top coordinate of the active piece.
+    """
+    current_board = raw_board - raw_board * active_mask
+    # find top left and bottom right corners of active mask
+    top = 0 if np.any(active_mask[0, :] == 1) else 1
+    left = 7 if active_mask[top, 7] == 1 else 8
+    x = left
+    while active_mask[top, x]:
+        x += 1
+    right = x
+    y = top
+    while active_mask[y, left]:
+        y += 1
+    bottom = y
+    return current_board, raw_board[top:bottom, left:right], top
 
 
 def can_place(board, piece, x, y):
@@ -49,25 +91,6 @@ def can_place(board, piece, x, y):
     return True
 
 
-def getCurrentBoardAndPiece(raw_board: np.array, active_mask: np.array):
-    """
-    Separates the board from the active tetromino. Also returns the top coordinate of the active piece.
-    """
-    current_board = raw_board - raw_board * active_mask
-    # find top left and bottom right corners of active mask
-    top = 0 if np.any(active_mask[0, :] == 1) else 1
-    left = 7 if active_mask[top, 7] == 1 else 8
-    x = left
-    while active_mask[top, x]:
-        x += 1
-    right = x
-    y = top
-    while active_mask[y, left]:
-        y += 1
-    bottom = y
-    return current_board, raw_board[top:bottom, left:right], top
-
-
 def tryHardDrop(board: np.array, piece: np.array, starting_x: int, starting_y):
     # find the lowest position that this piece can be dropped with this x (if possible)
     y = starting_y
@@ -75,6 +98,35 @@ def tryHardDrop(board: np.array, piece: np.array, starting_x: int, starting_y):
         return None
     y += 1
     while can_place(board, piece, starting_x, y):
+        y += 1
+    y -= 1
+    new_board = board.copy()
+    new_board[
+        y : y + len(piece),
+        starting_x : starting_x + len(piece),
+    ] += piece
+    return new_board
+
+
+def get_slices(piece: np.array, x, y):
+    height, width = piece.shape
+    return tuple((slice(y, y + height), slice(x, x + width)))
+
+
+def can_place_fast(board: np.array, piece: np.array, x: int, y: int):
+    slices = get_slices(piece, x, y)
+    board_subsection = board[slices]
+    return board_subsection.shape == piece.shape and not np.any(
+        board_subsection[piece > 0] > 0
+    )
+
+
+def tryHardDrop_fast(board, piece, starting_x, starting_y):  # ~40% faster than tryHardDrop
+    y = starting_y
+    if not can_place_fast(board, piece, starting_x, y):
+        return None
+    y += 1
+    while can_place_fast(board, piece, starting_x, y):
         y += 1
     y -= 1
     new_board = board.copy()
@@ -97,7 +149,7 @@ def getBestHardDrop(current_board: np.array, active_piece: np.array, rating_func
         for x_shift in range(-7, 7):
             # find the lowest position that this piece can be dropped with this x (if possible)
             # account for gravity – piece must fall by one for every x translation
-            new_board = tryHardDrop(
+            new_board = tryHardDrop_fast(
                 current_board, rotated_piece, x_shift + starting_x, abs(x_shift)
             )
             if new_board is None:
@@ -146,10 +198,6 @@ def getStartingX(piece: np.array) -> int:
     return 7 if len(piece) == 4 else 8
 
 
-def hash_board(board: np.array) -> int:
-    return board.data.tobytes()
-
-
 ROTATED_TETROMINOES = [[np.rot90(piece, r) for r in range(4)] for piece in TETROMINOES]
 
 
@@ -161,8 +209,8 @@ def getBestDecision(
     piece_queue: list[np.array],
     can_swap: bool,
     rating_function,
-    num_beams=5,
-    num_decisions=2,
+    num_beams,
+    num_decisions,
 ):
     """
     Returns the best decision for the active piece, given the queue. Decision is either a (rotation, horizontal translation) tuple or (False, False) if best decision is to swap.
@@ -190,12 +238,17 @@ def getBestDecision(
         d0=None,
         decisions_rem=num_decisions,
     )
+    visited_states = set()
     candidates: list[LookaheadCandidate] = [init_state]
     terminals = []
     while candidates:
         new_candidates = []
         while candidates:
             candidate = candidates.pop()
+            candidateHash = hashCandidate(candidate)
+            if candidateHash in visited_states:
+                continue
+            visited_states.add(candidateHash)
             if candidate.decisions_rem == 0:
                 terminals.append((-candidate.negBoardRating, candidate.d0))
                 continue
@@ -204,7 +257,7 @@ def getBestDecision(
                 rp = rotated_pieces[candidate.api][r % 4]
                 for x_shift in range(-7, 7):
                     starting_x = getStartingX(rp)
-                    new_board = tryHardDrop(
+                    new_board = tryHardDrop_fast(  # over half the total calculation time comes from this
                         candidate.board,
                         rp,
                         x_shift + starting_x,
