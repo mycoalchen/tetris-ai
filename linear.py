@@ -18,7 +18,7 @@ from lee import leeRating
 
 def testLinearBot(
     ratingFunction,
-    lookahead=1,
+    lookahead=2,
     numTrials=10,
     render=False,
     jUpdates=True,
@@ -33,7 +33,7 @@ def testLinearBot(
         steps = 0
         t0 = datetime.datetime.now()
         calc_time = 0
-        new_piece = True
+        new_piece, can_swap = True, True
         observation, _ = env.reset()
         terminated = False
         while not terminated:
@@ -48,27 +48,35 @@ def testLinearBot(
                         a = 1
             if new_piece:
                 t1 = datetime.datetime.now()
-                current_board, active_piece = getCurrentBoardAndPiece(
+                current_board, active_piece, active_piece_starting_y = getCurrentBoardAndPiece(
                     observation["board"], observation["active_tetromino_mask"]
                 )
-                queue = readQueue(observation["queue"], lookahead)
+                queue = readQueue(observation["queue"], lookahead + 1)
                 decision = getBestDecision(
-                    current_board,
-                    active_piece,
-                    np.zeros((4, 4)),
-                    queue,
-                    False,
-                    ratingFunction,
+                    current_board=current_board,
+                    active_piece_starting_y=active_piece_starting_y,
+                    active_piece=active_piece,
+                    held_piece=read4x4(observation["holder"]),
+                    piece_queue=queue,
+                    can_swap=can_swap,
+                    rating_function=ratingFunction,
+                    num_beams=5,
+                    num_decisions=lookahead+1
                 )
+                new_piece = False
                 if decision == ():
                     break
                 r, x = decision
                 calc_time += (datetime.datetime.now() - t1).total_seconds()
-            new_piece = False
             match r, x:
+                case False, False:
+                    action = 6
+                    new_piece = True
+                    can_swap = False
                 case 0, 0:
                     action = 5
                     new_piece = True
+                    can_swap = True
                 case -1, _:
                     action = 4
                     r += 1
@@ -101,4 +109,4 @@ def testLinearBot(
 
 
 if __name__ == "__main__":
-    testLinearBot(leeRating, render=False, jUpdates=True, stepUpdates=False)
+    testLinearBot(leeRating, render=False, jUpdates=True, stepUpdates=True, lookahead=2)
