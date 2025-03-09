@@ -4,6 +4,8 @@ from dataclasses import dataclass, field
 from typing import Any
 import time, pstats
 
+# import numba as nb
+
 
 # for higher cprofile precision
 def f8_alt(x):
@@ -44,6 +46,19 @@ def hashCandidate(candidate: LookaheadCandidate) -> int:
 
 BOARD_WIDTH, BOARD_HEIGHT = 10, 20
 
+TETROMINOES = [
+    np.array(
+        [[0, 0, 0, 0], [1, 1, 1, 1], [0, 0, 0, 0], [0, 0, 0, 0]], dtype=np.uint8
+    ),  # I
+    np.array([[1, 1], [1, 1]], dtype=np.uint8),  # O
+    np.array([[0, 1, 0], [1, 1, 1], [0, 0, 0]], dtype=np.uint8),  # T
+    np.array([[0, 1, 1], [1, 1, 0], [0, 0, 0]], dtype=np.uint8),  # S
+    np.array([[1, 1, 0], [0, 1, 1], [0, 0, 0]], dtype=np.uint8),  # Z
+    np.array([[1, 0, 0], [1, 1, 1], [0, 0, 0]], dtype=np.uint8),  # J
+    np.array([[0, 0, 1], [1, 1, 1], [0, 0, 0]], dtype=np.uint8),  # L
+]
+ROTATED_TETROMINOES = [[np.rot90(piece, r) for r in range(4)] for piece in TETROMINOES]
+
 
 def getCurrentBoardAndPiece(raw_board: np.array, active_mask: np.array):
     """
@@ -64,113 +79,52 @@ def getCurrentBoardAndPiece(raw_board: np.array, active_mask: np.array):
     return current_board, raw_board[top:bottom, left:right], top
 
 
-def can_place(board, piece, x, y):
-    """
-    Check whether a given piece (2D numpy array) can be placed on the board
-    with its top-left corner at (x, y). The placement is valid if:
-      - Every nonzero cell in the piece is within the board bounds.
-      - There is no collision (i.e. board cell is already nonzero).
-    """
-    piece_rows, piece_cols = piece.shape
-    for i in range(piece_rows - 1, -1, -1):
-        for j in range(piece_cols):
-            if piece[i, j] != 0:
-                board_x = x + j
-                board_y = y + i
-                # Check boundaries.
-                if (
-                    board_x < 4
-                    or board_x >= 4 + BOARD_WIDTH
-                    or board_y < 0
-                    or board_y >= BOARD_HEIGHT
-                ):
-                    return False
-                # Check for collisions.
-                if board[board_y, board_x] != 0:
-                    return False
+# Only the bottom pieces of the tetromino matter when checking if it can be placed
+# Get tuple of lists containing lowest cell for each col in a tetromino
+# (0, 0) is the top left cell in this tetromino
+# Precompute this to save time
+def get_bottom_cells(piece):
+    xs, ys = [], []
+    for x in range(piece.shape[1]):
+        y = piece.shape[0] - 1
+        while y >= 0 and piece[y, x] == 0:
+            y -= 1
+        if y >= 0:
+            xs.append(x)
+            ys.append(y)
+    return xs, ys
+
+
+ROTATED_TETROMINOES_BOTTOM_CELLS = []
+for r in ROTATED_TETROMINOES:
+    ROTATED_TETROMINOES_BOTTOM_CELLS.append([])
+    for rp in r:
+        ROTATED_TETROMINOES_BOTTOM_CELLS[-1].append(get_bottom_cells(rp))
+
+
+# Directly read the bottom indices of the tetromino
+def can_place(board, piece_xs, piece_ys, starting_x, starting_y):
+    for i in range(len(piece_xs)):
+        if board[starting_y + piece_ys[i], starting_x + piece_xs[i]] != 0:
+            return False
     return True
 
 
-def tryHardDrop(board: np.array, piece: np.array, starting_x: int, starting_y):
-    # find the lowest position that this piece can be dropped with this x (if possible)
+def tryHardDrop(board, piece, piece_bottom_cells, x, starting_y):
+    piece_xs, piece_ys = piece_bottom_cells
     y = starting_y
-    if not can_place(board, piece, starting_x, y):
+    if not can_place(board, piece_xs, piece_ys, x, y):
         return None
     y += 1
-    while can_place(board, piece, starting_x, y):
+    while can_place(board, piece_xs, piece_ys, x, y):
         y += 1
     y -= 1
     new_board = board.copy()
     new_board[
         y : y + len(piece),
-        starting_x : starting_x + len(piece),
+        x : x + len(piece),
     ] += piece
     return new_board
-
-
-def get_slices(piece: np.array, x, y):
-    height, width = piece.shape
-    return tuple((slice(y, y + height), slice(x, x + width)))
-
-
-def can_place_fast(board: np.array, piece: np.array, x: int, y: int):
-    slices = get_slices(piece, x, y)
-    board_subsection = board[slices]
-    return board_subsection.shape == piece.shape and not np.any(
-        board_subsection[piece > 0] > 0
-    )
-
-
-def tryHardDrop_fast(board, piece, starting_x, starting_y):  # ~40% faster than tryHardDrop
-    y = starting_y
-    if not can_place_fast(board, piece, starting_x, y):
-        return None
-    y += 1
-    while can_place_fast(board, piece, starting_x, y):
-        y += 1
-    y -= 1
-    new_board = board.copy()
-    new_board[
-        y : y + len(piece),
-        starting_x : starting_x + len(piece),
-    ] += piece
-    return new_board
-
-
-def getBestHardDrop(current_board: np.array, active_piece: np.array, rating_function):
-    """
-    Returns the (rotation, horizontal translation) tuple corresponding to the best decision for the given board, active piece, and rating function. Active piece is assumed to start at (0, starting_x).
-    """
-    piece_size = len(active_piece)  # pieces are always square
-    starting_x = getStartingX(active_piece)
-    best_decision, best_rating = (), -100000000
-    for r in range(-1, 3):
-        rotated_piece = np.rot90(active_piece, r)
-        for x_shift in range(-7, 7):
-            # find the lowest position that this piece can be dropped with this x (if possible)
-            # account for gravity – piece must fall by one for every x translation
-            new_board = tryHardDrop_fast(
-                current_board, rotated_piece, x_shift + starting_x, abs(x_shift)
-            )
-            if new_board is None:
-                continue
-            new_rating = rating_function(new_board)
-            if new_rating > best_rating:
-                best_rating, best_decision = new_rating, (r, x_shift)
-    return best_decision
-
-
-TETROMINOES = [
-    np.array(
-        [[0, 0, 0, 0], [1, 1, 1, 1], [0, 0, 0, 0], [0, 0, 0, 0]], dtype=np.uint8
-    ),  # I
-    np.array([[1, 1], [1, 1]], dtype=np.uint8),  # O
-    np.array([[0, 1, 0], [1, 1, 1], [0, 0, 0]], dtype=np.uint8),  # T
-    np.array([[0, 1, 1], [1, 1, 0], [0, 0, 0]], dtype=np.uint8),  # S
-    np.array([[1, 1, 0], [0, 1, 1], [0, 0, 0]], dtype=np.uint8),  # Z
-    np.array([[1, 0, 0], [1, 1, 1], [0, 0, 0]], dtype=np.uint8),  # J
-    np.array([[0, 0, 1], [1, 1, 1], [0, 0, 0]], dtype=np.uint8),  # L
-]
 
 
 def read4x4(grid: np.array) -> np.array:
@@ -198,9 +152,6 @@ def getStartingX(piece: np.array) -> int:
     return 7 if len(piece) == 4 else 8
 
 
-ROTATED_TETROMINOES = [[np.rot90(piece, r) for r in range(4)] for piece in TETROMINOES]
-
-
 def getBestDecision(
     current_board: np.array,
     active_piece_starting_y: int,
@@ -219,13 +170,18 @@ def getBestDecision(
     Maintains the top num_beams move sequences and prunes all others.
     """
     current_pieces = [held_piece, active_piece] + piece_queue
-    # Precompute rotations of current pieces
+    # Precompute rotations of current pieces and their bottom cells
     rotated_pieces = []
+    rotated_pieces_bottom_cells = []
     for piece in current_pieces:
         if piece is not None:
             rotated_pieces.append(ROTATED_TETROMINOES[piece[1, 1] - 2])
+            rotated_pieces_bottom_cells.append(
+                ROTATED_TETROMINOES_BOTTOM_CELLS[piece[1, 1] - 2]
+            )
         else:
             rotated_pieces.append(None)
+            rotated_pieces_bottom_cells.append(None)
     # Beam search over all possible sequences of next hard drops
     init_state = LookaheadCandidate(
         negBoardRating=-rating_function(current_board),
@@ -255,11 +211,13 @@ def getBestDecision(
             # try all the hard drops
             for r in range(-1, 3):
                 rp = rotated_pieces[candidate.api][r % 4]
+                rp_bottom_cells = rotated_pieces_bottom_cells[candidate.api][r % 4]
                 for x_shift in range(-7, 7):
                     starting_x = getStartingX(rp)
-                    new_board = tryHardDrop_fast(  # over half the total calculation time comes from this
+                    new_board = tryHardDrop(  # over half the total calculation time comes from this
                         candidate.board,
                         rp,
+                        rp_bottom_cells,
                         x_shift + starting_x,
                         candidate.apsy + abs(x_shift),
                     )

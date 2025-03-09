@@ -4,7 +4,6 @@ from utils import (
     BOARD_HEIGHT,
     BOARD_WIDTH,
     getCurrentBoardAndPiece,
-    getBestHardDrop,
     getBestDecision,
     readQueue,
     read4x4,
@@ -117,4 +116,4 @@ def testLinearBot(
 
 
 if __name__ == "__main__":
-    testLinearBot(leeRating, render=False, jUpdates=True, stepUpdates=True, numTrials=1, lookahead=1, num_beams=5, allow_swaps=False)
+    testLinearBot(leeRating, render=True, jUpdates=True, stepUpdates=True, numTrials=1, lookahead=0, num_beams=5, allow_swaps=False)
