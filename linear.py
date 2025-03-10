@@ -26,7 +26,7 @@ def testLinearBot(
     allow_swaps=True,
 ):
 
-    env = gym.make("tetris_gymnasium/Tetris", render_mode="human")
+    env = gym.make("tetris_gymnasium/Tetris", render_mode="human", height=BOARD_HEIGHT)
 
     J = 0
     for i in range(numTrials):
@@ -116,10 +116,11 @@ def testLinearBot(
 if __name__ == "__main__":
     lookahead = 1
     num_beams = 5
-    allow_swaps = False
+    allow_swaps = True
     print("lookahead:", lookahead)
     print("num_beams:", num_beams)
     print("allow_swaps:", allow_swaps)
+    print("board height:", BOARD_HEIGHT)
     testLinearBot(
         leeRating,
         render=False,

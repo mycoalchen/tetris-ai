@@ -1,0 +1,12 @@
+lookahead: 0
+num_beams: 5
+allow_swaps: False
+board height: 14
+Trial 0 terminated with reward 262
+Reached J = 1001 in 0.92s
+Trial 1 terminated with reward 1833
+Trial 2 terminated with reward 410
+Reached J = 1002 in 1.00s
+Trial 3 terminated with reward 1524
+Trial 4 terminated with reward 917
+J(pi)= 989.2

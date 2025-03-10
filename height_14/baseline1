@@ -1,0 +1,58 @@
+lookahead: 0
+num_beams: 5
+allow_swaps: True
+board height: 14
+Reached J = 1007 in 2.46s
+Reached J = 2001 in 4.80s
+Reached J = 3023 in 7.35s
+Reached J = 4005 in 9.78s
+Reached J = 5007 in 12.43s
+Reached J = 6000 in 14.96s
+Reached J = 7001 in 17.45s
+Reached J = 8001 in 19.84s
+Reached J = 9000 in 23.07s
+Reached J = 10006 in 26.09s
+Reached J = 11031 in 29.27s
+Reached J = 12000 in 31.82s
+Reached J = 13000 in 34.47s
+Reached J = 14002 in 37.21s
+Reached J = 15006 in 39.73s
+Reached J = 16000 in 43.37s
+Reached J = 17001 in 46.32s
+Reached J = 18001 in 48.93s
+Reached J = 19000 in 51.58s
+Reached J = 20000 in 54.46s
+Reached J = 21000 in 57.31s
+Reached J = 22003 in 59.86s
+Reached J = 23009 in 62.39s
+Reached J = 24006 in 65.59s
+Reached J = 25000 in 68.66s
+Reached J = 26003 in 72.06s
+Reached J = 27035 in 74.77s
+Reached J = 28010 in 77.88s
+Reached J = 29000 in 80.35s
+Reached J = 30030 in 83.01s
+Reached J = 31008 in 85.77s
+Trial 0 terminated with reward 31941
+Reached J = 1006 in 2.61s
+Trial 1 terminated with reward 1802
+Reached J = 1002 in 3.90s
+Trial 2 terminated with reward 1877
+Reached J = 1000 in 2.61s
+Reached J = 2018 in 1081.29s
+Reached J = 3000 in 1086.83s
+Reached J = 4006 in 1091.59s
+Reached J = 5010 in 1095.50s
+Reached J = 6000 in 1098.36s
+Trial 3 terminated with reward 6614
+Reached J = 1000 in 2.54s
+Reached J = 2007 in 5.43s
+Reached J = 3033 in 8.02s
+Reached J = 4004 in 10.45s
+Reached J = 5010 in 13.47s
+Reached J = 6000 in 16.17s
+Reached J = 7010 in 18.83s
+Reached J = 8001 in 21.61s
+Reached J = 9006 in 24.16s
+Trial 4 terminated with reward 9904
+J(pi)= 10427.6

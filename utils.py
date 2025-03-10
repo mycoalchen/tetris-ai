@@ -44,7 +44,7 @@ def hashCandidate(candidate: LookaheadCandidate) -> int:
     )
 
 
-BOARD_WIDTH, BOARD_HEIGHT = 10, 20
+BOARD_WIDTH, BOARD_HEIGHT = 10, 14
 
 TETROMINOES = [
     np.array(
